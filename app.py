@@ -1,41 +1,49 @@
 import streamlit as st
-from py2neo import Graph, Node, Relationship
+from neo4j import GraphDatabase, basic_auth
 
 # Replace these with your Neo4j connection details
-NEO4J_URI = st.secrets("NEO4J_URI")
-NEO4J_USER = st.secrets("NEO4J_USER")
-NEO4J_PASSWORD = st.secrets("NEO4J_PASSWORD")
+uri = st.secrets['NEO4J_URI']
+user = st.secrets['NEO4J_USER']
+password = st.secrets['NEO4J_PASSWORD']
 
-graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+driver = GraphDatabase.driver(uri, auth=basic_auth(user, password))
+
+def run_query(query, parameters=None):
+    with driver.session() as session:
+        return session.run(query, parameters).data()
 
 def check_node_exists(label, properties):
     where_clause = " AND ".join([f"n.{key} = '{value}'" for key, value in properties.items()])
-
     query = f"MATCH (n:{label}) WHERE {where_clause} RETURN n LIMIT 1"
-    result = graph.run(query).data()
+    result = run_query(query)
     return len(result) > 0
+
+
 def delete_all_nodes():
-    graph.delete_all()
+    query = "MATCH (n) DETACH DELETE n"
+    run_query(query)
     return None
 def create_project_node(project_info, coord_info):
     if check_node_exists('Project', project_info):
         raise Exception('Project already exists in the database')
-    project_node = Node('Project', **project_info)
-    if not check_node_exists('Researcher', coord_info):
-        coord_node = Node('Researcher', **coord_info)
-        graph.create(coord_node)
-    else:
-        coord_node = graph.nodes.match('Researcher', **coord_info).first()
-    graph.create(project_node)
-    relation = Relationship(coord_node, 'WORKS_ON', project_node, role='Project Coordinator')
-    graph.create(relation)
+
+    query = """
+    MERGE (coord:Researcher)
+    ON CREATE SET coord += $coord_info, coord.id = ID(coord)
+    CREATE (project:Project $project_info)
+    CREATE (coord)-[:WORKS_ON {role: 'Project Coordinator'}]->(project)
+    """
+    run_query(query, {'coord_info': coord_info, 'project_info': project_info})
+
     return None
 
 def get_all_nodes():
-    return graph.nodes.match().all()
+    query = "MATCH (n) RETURN n"
+    return run_query(query)
 
 def get_all_projects():
-    return graph.nodes.match('Project').all()
+    query = "MATCH (n:Project) RETURN n"
+    return run_query(query)
 
 def submit_project_info(name, proj_type, proj_website, proj_start, proj_end, coord, coord_contact, coord_host):
     project_dict = {'name': name, 'FundedBy': proj_type, 'Website': proj_website, 'StartDate': proj_start, 'EndDate': proj_end}
@@ -47,24 +55,19 @@ def create_case_study_node(case_study_info, case_study_lead_info, project_name):
     for key, value in case_study_info.items():
         if value == "" or value is None:
             case_study_info[key] = "None"
-    if check_node_exists('CaseStudy', case_study_info):
-        case_study_node = graph.nodes.match('CaseStudy', **case_study_info).first()
-    else:
-        case_study_node = Node('CaseStudy', **case_study_info)
-        graph.create(case_study_node)
-    if check_node_exists('Researcher', case_study_lead_info):
-        case_study_lead_node = graph.nodes.match('Researcher', **case_study_lead_info).first()
-    else:
-        case_study_lead_node = Node('Researcher', **case_study_lead_info)
-        graph.create(case_study_lead_node)
-    project_node = graph.nodes.match('Project', name=project_name).first()
-    cs_relation = Relationship(project_node, 'HAS_CASE_STUDY', case_study_node)
-    researcher_relation = Relationship(case_study_lead_node, 'WORKS_ON', case_study_node, role='Case Study Leader')
-    researcher_project_relation = Relationship(case_study_lead_node, 'WORKS_ON', project_node, role='Case Study Leader')
-    graph.create(researcher_relation)
-    graph.create(cs_relation)
-    graph.create(researcher_project_relation)
+
+    query = """
+    MERGE (case_study:CaseStudy $case_study_info)
+    MERGE (lead:Researcher $case_study_lead_info)
+    MATCH (project:Project {name: $project_name})
+    MERGE (project)-[:HAS_CASE_STUDY]->(case_study)
+    MERGE (lead)-[:WORKS_ON {role: 'Case Study Leader'}]->(case_study)
+    MERGE (lead)-[:WORKS_ON {role: 'Case Study Leader'}]->(project)
+    """
+
+    run_query(query, {'case_study_info': case_study_info, 'case_study_lead_info': case_study_lead_info, 'project_name': project_name})
     return None
+
 
 st.title("NEXUSNET Database Survey Form")
 
