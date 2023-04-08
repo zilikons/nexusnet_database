@@ -506,9 +506,9 @@ if selection == 'New Case Study':
 
 
 
-if st.button("Delete All Data"):
-    delete_all_nodes()
-    st.success("All data nodes deleted successfully")
+# if st.button("Delete All Data"):
+#     delete_all_nodes()
+#     st.success("All data nodes deleted successfully")
 st.header("All Data Nodes")
 all_nodes = get_all_nodes()
 for node in all_nodes:
