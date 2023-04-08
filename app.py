@@ -2,9 +2,9 @@ import streamlit as st
 from py2neo import Graph, Node, Relationship
 
 # Replace these with your Neo4j connection details
-NEO4J_URI = st.secrets("NEO4J_URI")
-NEO4J_USER = st.secrets("NEO4J_USER")
-NEO4J_PASSWORD = st.secrets("NEO4J_PASSWORD")
+NEO4J_URI = st.secrets(["NEO4J_URI"])
+NEO4J_USER = st.secrets(["NEO4J_USER"])
+NEO4J_PASSWORD = st.secrets(["NEO4J_PASSWORD"])
 
 graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
