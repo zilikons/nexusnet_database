@@ -1,5 +1,5 @@
 import streamlit as st
-from py2neo import Graph, Node, Relationship
+from py2neo import Graph, Node, Relationship, ServiceUnavailable
 
 # Replace these with your Neo4j connection details
 NEO4J_URI = st.secrets["NEO4J_URI"]
@@ -8,8 +8,12 @@ NEO4J_USER = st.secrets["NEO4J_USER"]
 print(NEO4J_USER)
 NEO4J_PASSWORD = st.secrets["NEO4J_PASSWORD"]
 print(NEO4J_PASSWORD[3:])
-
-graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+try:
+    graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    st.write("Connected to Neo4j")
+except ServiceUnavailable as e:
+    st.error(f"Failed to connect to Neo4j: {e}")
+#graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
 def check_node_exists(label, properties):
     where_clause = " AND ".join([f"n.{key} = '{value}'" for key, value in properties.items()])
