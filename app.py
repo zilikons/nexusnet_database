@@ -1,4 +1,5 @@
 import streamlit as st
+
 from neo4j import GraphDatabase, basic_auth
 
 # Replace these with your Neo4j connection details
@@ -11,6 +12,7 @@ driver = GraphDatabase.driver(uri, auth=basic_auth(user, password))
 def run_query(query, parameters=None):
     with driver.session() as session:
         return session.run(query, parameters).data()
+
 
 def check_node_exists(label, properties):
     where_clause = " AND ".join([f"n.{key} = '{value}'" for key, value in properties.items()])
