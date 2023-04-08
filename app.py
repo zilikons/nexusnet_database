@@ -86,15 +86,47 @@ def create_case_study_node(case_study_info, case_study_lead_info, project_name):
     run_query(query, {'case_study_info': case_study_info, 'case_study_lead_info': case_study_lead_info, 'project_name': project_name})
     return None
 
+def get_all_node_labels():
+    query = """
+    CALL db.labels()
+    YIELD label
+    RETURN label
+    """
+    results =  run_query(query)
+    labels = []
+    for result in results:
+        labels.append(result['label'])
+    return labels
 
+def get_all_node_names_of_label(label):
+    query = f"""
+    MATCH (n:{label})
+    RETURN n.name
+    """
+    results = run_query(query)
+    names = []
+    for result in results:
+        names.append(result['n.name'])
+    return names
 
+def get_node_info(label,name):
+    query=f"""
+    MATCH (n:{label} {{name: '{name}'}})
+    RETURN n
+    """
+    result = run_query(query)
+    return list(result[0]['n'].keys())
 
+def modify_node_attribute(label,name,attribute,new_value):
+    query=f"""
+    MATCH (n:{label} {{name: '{name}'}})
+    SET n.{attribute} = '{new_value}'
+    """
+    run_query(query)
+    return None
 
 st.title("NEXUSNET Database Survey Form")
-
-
-
-selection = st.radio('Are you inputting a new project or adding a case study to an existing project?', ('New Project', 'New Case Study'))
+selection = st.radio('Are you inputting a new project or adding a case study to an existing project?', ('New Project', 'New Case Study','Modify Nodes'))
 if selection == 'New Project':
     with st.form(key='project_form'):
         name = st.text_input(label='Project Name')
@@ -494,25 +526,17 @@ if selection == 'New Case Study':
                 case_study_project)
         st.success("Case Study Data Submitted Successfully!")
 
-
-
-
-
-
-# label = st.text_input("Node label")
-# property_key = st.text_input("Property key")
-# property_value = st.text_input("Property value")
-
-# if st.button("Create Node"):
-#     node_properties = {property_key: property_value}
-#     create_node(label, node_properties)
-#     st.success("Node created successfully")
-
-
-
-# if st.button("Delete All Data"):
-#     delete_all_nodes()
-#     st.success("All data nodes deleted successfully")
+if selection == "Modify Nodes":
+    labels = get_all_node_labels()
+    label_selection = st.selectbox("Select Node Label to Modify", options=labels, key="modify_node_label")
+    node_name_list = get_all_node_names_of_label(label_selection)
+    node_name_selection = st.selectbox("Select Node to Modify", options=node_name_list, key="modify_node_name")
+    node_attribute_list = get_node_info(label_selection, node_name_selection)
+    node_attribute_to_modify = st.selectbox("Select Attribute to Modify", options=node_attribute_list, key="modify_node_attribute")
+    new_attribute_value = st.text_input("Enter New Value for Attribute", key="modify_node_attribute_value")
+    if st.button("Modify Node"):
+        modify_node_attribute(label_selection, node_name_selection, node_attribute_to_modify, new_attribute_value)
+        st.success("Node Modified Successfully!")
 st.header("All Data Nodes")
 all_nodes = get_all_nodes()
 for node in all_nodes:
