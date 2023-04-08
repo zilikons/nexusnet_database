@@ -9,6 +9,22 @@ password = st.secrets['NEO4J_PASSWORD']
 
 driver = GraphDatabase.driver(uri, auth=basic_auth(user, password))
 
+def validate_lat_lon(lat, lon):
+    # Check if the values are floats
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except ValueError:
+        return False
+
+    # Check if the values are within valid ranges
+    if lat < -90 or lat > 90:
+        return False
+    if lon < -180 or lon > 180:
+        return False
+
+    return True
+
 def run_query(query, parameters=None):
     with driver.session() as session:
         return session.run(query, parameters).data()
@@ -156,7 +172,13 @@ if selection == 'New Case Study':
     case_study_leader_institution = st.text_input("8. What is the host institution of the case study leader?")
     case_study_leader_name = st.text_input("Case study leader name")
     case_study_leader_contact = st.text_input("Case study leader email")
-    case_study_country = st.text_input("9. In which country/countries is your case study located?")
+    case_study_country = st.text_input("9a. In which country/countries is your case study located?")
+    case_study_longitude = st.text_input("9b. What is the longitude of the case study?",value=0.0)
+    case_study_latitude = st.text_input("9c. What is the latitude of the case study?",value=0.0)
+    if validate_lat_lon(case_study_latitude, case_study_longitude):
+        st.write("Valid latitude and longitude values")
+    else:
+        st.write("Invalid latitude and longitude values")
 
     case_study_scale = st.selectbox(
         "10. What is the scale of the case study?",
@@ -493,6 +515,8 @@ if selection == 'New Case Study':
         create_case_study_node({
             'name': case_study_name,
             'Country': case_study_country,
+            'latitude':case_study_latitude,
+            'longitude':case_study_longitude,
             'Scale': case_study_scale,
             'Transboundary': case_study_transboundary,
             'Objectives': case_study_objectives,
