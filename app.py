@@ -24,10 +24,12 @@ def create_project_node(project_info, coord_info):
         raise Exception('Project with the same name already exists in the database')
 
     query = """
-    MERGE (coord:Researcher)
-    ON CREATE SET coord += $coord_info, coord.id = ID(coord)
+    MERGE (coord:Researcher {name: $coord_info.name})
+    ON CREATE SET coord += $coord_info, coord.id = apoc.create.uuid()
     CREATE (project:Project $project_info)
-    CREATE (coord)-[:WORKS_ON {role: 'Project Coordinator'}]->(project)
+    MERGE (coord)-[r:WORKS_ON {role: 'Project Coordinator'}]->(project)
+    ON CREATE SET r.timestamp = timestamp()
+
     """
     run_query(query, {'coord_info': coord_info, 'project_info': project_info})
 
@@ -68,15 +70,17 @@ def create_case_study_node(case_study_info, case_study_lead_info, project_name):
         if value == "" or value == [] or value is None:
             case_study_info[key] = "Not Available"
     query = """
-    MERGE (case_study:CaseStudy {id: apoc.create.uuid()})
-    SET case_study += $case_study_info
-    MERGE (lead:Researcher {id: apoc.create.uuid()})
-    SET lead += $case_study_lead_info
+    MERGE (case_study:CaseStudy {name: $case_study_info.name})
+        ON CREATE SET case_study.id = apoc.create.uuid(), case_study += $case_study_info
+    MERGE (lead:Researcher {name: $case_study_lead_info.name})
+        ON CREATE SET lead.id = apoc.create.uuid(), lead += $case_study_lead_info
     WITH case_study, lead
     MATCH (project:Project {name: $project_name})
     MERGE (project)-[:HAS_CASE_STUDY]->(case_study)
-    MERGE (lead)-[:WORKS_ON {role: 'Case Study Leader'}]->(case_study)
-    MERGE (lead)-[:WORKS_ON {role: 'Case Study Leader'}]->(project)
+    MERGE (lead)-[r1:WORKS_ON {role: 'Case Study Leader'}]->(case_study)
+        ON CREATE SET r1.timestamp = timestamp()
+    MERGE (lead)-[r2:WORKS_ON {role: 'Case Study Leader'}]->(project)
+        ON CREATE SET r2.timestamp = timestamp()
     """
 
     run_query(query, {'case_study_info': case_study_info, 'case_study_lead_info': case_study_lead_info, 'project_name': project_name})
