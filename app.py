@@ -86,8 +86,8 @@ def create_case_study_node(case_study_info, case_study_lead_info, project_name):
         if value == "" or value == [] or value is None:
             case_study_info[key] = "Not Available"
     query = """
-    MERGE (case_study:CaseStudy {name: $case_study_info.name})
-        ON CREATE SET case_study.id = apoc.create.uuid(), case_study += $case_study_info
+    CREATE (case_study:CaseStudy)
+        SET case_study.id = apoc.create.uuid(), case_study += $case_study_info
     MERGE (lead:Researcher {name: $case_study_lead_info.name})
         ON CREATE SET lead.id = apoc.create.uuid(), lead += $case_study_lead_info
     WITH case_study, lead
