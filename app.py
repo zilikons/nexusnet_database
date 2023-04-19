@@ -167,14 +167,14 @@ if selection == 'New Case Study':
     # SECTION 2: Case Study characteristics
     st.header("Section 1: Case Study Characteristics")
     case_study_project = st.selectbox("1. Which project is the case study part of?", list_of_projects)
-    st.subheader("WARNING: If you are adding a case study to a project that does not exist, please go back and create a new project first.")
+    st.subheader(":exclamation: :red[WARNING] :exclamation: : If you are adding a case study to a project that does not exist, please go back and create a new project first.")
     case_study_name = st.text_input("7. Name your case study")
     case_study_leader_institution = st.text_input("8. What is the host institution of the case study leader?")
     case_study_leader_name = st.text_input("Case study leader name")
     case_study_leader_contact = st.text_input("Case study leader email")
     case_study_country = st.text_input("9a. In which country/countries is your case study located?")
-    case_study_longitude = st.text_input("9b. What is the longitude of the case study?",value=0.0)
     case_study_latitude = st.text_input("9c. What is the latitude of the case study?",value=0.0)
+    case_study_longitude = st.text_input("9b. What is the longitude of the case study?",value=0.0)
     if validate_lat_lon(case_study_latitude, case_study_longitude):
         st.write("Valid latitude and longitude values")
     else:
@@ -475,7 +475,7 @@ if selection == 'New Case Study':
         "h": "The results are not used and there is no action in place to use them",
         "i": "Other purposes (please specify)",
     }
-    usage_choice = st.selectbox("37. How have the outputs of the project been used?", options=list(usage_options.values()), key="usage_choice")
+    usage_choice = st.multiselect("37. How have the outputs of the project been used?", options=list(usage_options.values()), key="usage_choice")
 
     if usage_choice == "Other purposes (please specify)":
         other_purpose = st.text_input("Please specify the other purpose:", key="other_purpose")
@@ -489,7 +489,7 @@ if selection == 'New Case Study':
         "n": "Nature conservation organizations",
         "o": "Others (please specify)",
     }
-    helix_choice = st.selectbox("38. When used, who used the results (Helix categorization)?", options=list(helix_categories.values()), key="helix_choice")
+    helix_choice = st.multiselect("38. When used, who used the results (Helix categorization)?", options=list(helix_categories.values()), key="helix_choice")
 
     if helix_choice == "Others (please specify)":
         other_helix = st.text_input("Please specify the other user:", key="other_helix")
