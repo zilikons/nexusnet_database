@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import uuid
 from neo4j import GraphDatabase, basic_auth
 
@@ -40,7 +41,7 @@ def create_project_node(project_info, coord_info):
         raise Exception('Project with the same name already exists in the database')
 
     query = """
-    MERGE (coord:Researcher {name: $coord_info.name})
+    MERGE (coord:Institution {name: $coord_info.name})
     ON CREATE SET coord += $coord_info, coord.id = apoc.create.uuid()
     CREATE (project:Project $project_info)
     MERGE (coord)-[r:WORKS_ON {role: 'Project Coordinator'}]->(project)
@@ -75,9 +76,9 @@ def get_all_projects():
     query = "MATCH (n:Project) RETURN n"
     return run_query(query)
 
-def submit_project_info(name, proj_type, proj_website, proj_start, proj_end, coord, coord_contact, coord_host):
+def submit_project_info(name, proj_type, proj_website, proj_start, proj_end, coord_host):
     project_dict = {'name': name, 'FundedBy': proj_type, 'Website': proj_website, 'StartDate': proj_start, 'EndDate': proj_end}
-    coord_dict = {'name': coord, 'ContactMail': coord_contact, 'HostInstitution': coord_host}
+    coord_dict = {'name': coord_host}
     create_project_node(project_dict, coord_dict)
     return None
 
@@ -141,23 +142,42 @@ def modify_node_attribute(label,name,attribute,new_value):
     run_query(query)
     return None
 
+def fetch_project_data(project_name,project_type):
+    name = project_name.lower()
+    if project_type == 'HORIZON EUROPE':
+        df = pd.read_csv('data/horizon_europe_c.csv')
+    else:
+        df = pd.read_csv('data/horizon_2020_c.csv')
+    df = df[df['projectAcronym'].str.lower() == name]
+    return df
+
 st.title("NEXUSNET Database Survey Form")
-selection = st.radio('Are you inputting a new project or adding a case study to an existing project?', ('New Project', 'New Case Study','Modify Nodes'))
+selection = st.radio('Are you inputting a new project or adding a case study to an existing project?', ('New Project', 'New Case Study'))
 if selection == 'New Project':
-    with st.form(key='project_form'):
-        name = st.text_input(label='Project Name')
-        proj_type = st.selectbox(label='The project is funded by:',options=['HORIZON 2020', 'HORIZON EUROPE', 'Life','Prima','Interreg','Erasmus+','Marie Sklodowska-Curie', 'National/Regional Funding', 'Other'])
-        proj_website = st.text_input(label='Project Website')
-        coord = st.text_input(label='Project Coordinator')
-        coord_contact = st.text_input(label='Project Coordinator Contact Email')
+    name = st.text_input(label='Project Name')
+    proj_type = st.selectbox(label='The project is funded by:',options=['HORIZON 2020', 'HORIZON EUROPE', 'ERC', 'Life','Prima','Interreg','Erasmus+','Marie Sklodowska-Curie', 'National/Regional Funding', 'Other'], index=1)
+    if proj_type != 'HORIZON EUROPE' and proj_type != 'HORIZON 2020':
         coord_host = st.text_input(label='Project Coordinator Host Institution')
-        proj_start = st.date_input(label='Project Start Date')
-        proj_end = st.date_input(label='Project End Date')
-        submit_button = st.form_submit_button(label='Submit Project Info')
+    else:
+        check_button = st.button(label='Fetch Project Info')
+        if check_button:
+            project_data = fetch_project_data(name,proj_type)
+            project_data_coord = project_data[project_data['role']=='coordinator'].reset_index(drop=True)
+            if project_data_coord.shape[0] == 0:
+                st.error('Project not found in the database. Please check the project name and funding type and try again.')
+                st.stop()
+            coord_host = project_data_coord['name'][0]
+            st.write(f" Project Coordinator: {coord_host}")
+            project_data_other = project_data[project_data['role'] != 'coordinator'].reset_index(drop=True)
+            st.table(project_data_other[['name']])
+    proj_website = st.text_input(label='Project Website')
+    proj_start = st.date_input(label='Project Start Date')
+    proj_end = st.date_input(label='Project End Date')
+    submit_button = st.button(label='Submit Project Info')
 
     if submit_button:
         submit_project_info(name, proj_type, proj_website, proj_start,
-                            proj_end, coord, coord_contact, coord_host)
+                            proj_end, coord_host)
         st.success('Project info submitted successfully!')
 
 if selection == 'New Case Study':
@@ -166,22 +186,22 @@ if selection == 'New Case Study':
 
     # SECTION 2: Case Study characteristics
     st.header("Section 1: Case Study Characteristics")
-    case_study_project = st.selectbox("1. Which project is the case study part of?", list_of_projects)
+    case_study_project = st.selectbox("Which project is the case study part of?", list_of_projects)
     st.subheader(":exclamation: :red[WARNING] :exclamation: : If you are adding a case study to a project that does not exist, please go back and create a new project first.")
-    case_study_name = st.text_input("7. Name your case study")
-    case_study_leader_institution = st.text_input("8. What is the host institution of the case study leader?")
+    case_study_name = st.text_input("Name your case study")
+    case_study_leader_institution = st.text_input("What is the host institution of the case study leader?")
     case_study_leader_name = st.text_input("Case study leader name")
     case_study_leader_contact = st.text_input("Case study leader email")
-    case_study_country = st.text_input("9a. In which country/countries is your case study located?")
-    case_study_latitude = st.text_input("9c. What is the latitude of the case study?",value=0.0)
-    case_study_longitude = st.text_input("9b. What is the longitude of the case study?",value=0.0)
-    if validate_lat_lon(case_study_latitude, case_study_longitude):
-        st.write("Valid latitude and longitude values")
-    else:
-        st.write("Invalid latitude and longitude values")
+    case_study_country = st.text_input("In which country/countries is your case study located?")
+    #case_study_latitude = st.text_input("9c. What is the latitude of the case study?",value=0.0)
+    #case_study_longitude = st.text_input("9b. What is the longitude of the case study?",value=0.0)
+    #if validate_lat_lon(case_study_latitude, case_study_longitude):
+    #    st.write("Valid latitude and longitude values")
+    #else:
+    #    st.write("Invalid latitude and longitude values")
 
     case_study_scale = st.selectbox(
-        "10. What is the scale of the case study?",
+        "What is the scale of the case study?",
         (
             "Global",
             "Continental",
@@ -200,87 +220,205 @@ if selection == 'New Case Study':
         case_study_scale_other = st.text_input("Please specify:")
 
     case_study_transboundary = st.selectbox(
-        "11. Is the case study transboundary?",
+        "Is the case study transboundary?",
         ("No", "Transboundary between countries", "Transboundary between regions"),
     )
 
-    case_study_objectives = st.text_area("12. What were/are the objectives (goals) of the case study?")
+    case_study_objectives = st.text_area("What were/are the objectives (goals) of the case study?")
 
-    # SECTION 3: Nexus components information
+    # SECTION 2: Nexus components information
     st.header("Section 2: Nexus Components Information")
 
     nexus_sectors = st.multiselect(
-        "13. What sectors are involved in the identified nexus challenges?",
+        "What sectors are involved in the identified nexus challenges?",
         (
             "Water",
             "Food",
             "Energy",
-            "Forestry",
             "Land Use / Land Availability",
             "Ecosystem and/or/Biodiversity",
             "Climate",
             "Soil",
             "Waste",
             "Health",
-            "Other (specify)",
+            "Other (please specify)",
         ),
     )
-    if "Other (specify)" in nexus_sectors:
+    if "Other (please specify)" in nexus_sectors:
         nexus_sectors_other = st.text_input("Please specify:")
 
     layers_of_analysis = st.multiselect(
-        "14. Did the Case Study involve any workflows for the following layers of analysis?",
+        "What are the main areas of investigation for research in the CS?",
         (
             "Biophysical modeling",
-            "Social",
-            "Policy",
+            "Behavioural studies and stakeholder perception",
+            "Governance and policy",
             "Economic",
-            "Citizen science",
-            "Gender dimension",
-            "Metric development",
-            "Other please specify:",
+            "Other (please specify):",
         ),
     )
-    if "Other please specify:" in layers_of_analysis:
+    if "Other (p)lease specify):" in layers_of_analysis:
         layers_of_analysis_other = st.text_input("Please specify:")
 
     # SECTION 4: Modeling/Tools – Main simulation approaches and methodologies
-    st.header("Section 3: Modeling/Tools – Main simulation approaches and methodologies")
+    st.header("Section 3: Modeling/Tools - Main simulation approaches and methodologies")
 
-    systems_analysis = st.selectbox(
-        "15. Did you perform any Systems Analysis / Complexity Science?",
-        ("YES", "NO"),
+    systems_analysis = st.multiselect(
+        "Systems analysis: Which of the following method(s) have you used?",
+        ("System Dynamics Modelling (SDM)",
+         "Multi-sectoral systems analysis",
+         "Material flows analysis",
+         "System informatics and analytics",
+         "Causal loop diagrams and system feedbacks",
+         "Mathematical/engineering modeling",
+         "Resource flows",
+         "Network analysis",
+         "Other (please specify)"),
     )
     systems_analysis_specify = ""
-    if systems_analysis == "YES":
-        systems_analysis_specify = st.text_input("15a) If yes, please specify:")
+    if "Other (please specify)" in systems_analysis:
+        systems_analysis_specify = st.text_input("Please specify:")
+    #added
+    integrated_modeling = st.multiselect(
+        "Integrated modelling: Which of the following method(s) have you used?",
+        ("SWAT (Soil and Water Assessment Tool)",
+         "CLEWS model (Climate, Land, Energy and Water Strategies)",
+         "SEWEM (System-Wide Economic-Water-Energy Model)",
+         "WEF Nexus tool 2.0",
+         "PRIMA (Platform for Regional Integrated Modeling and Analysis)",
+         "MCDA (Multi-Criteria Decision Analysis)",
+         "MuSIASEM (Multi-scale Integrated Analysis of Societal and Ecosystem Metabolism)",
+         "Integrated assessment models",
+         "Other (please specify)")
+    )
+    #added
+    integrated_modeling_specify = ""
+    if "Other (please specify)" in integrated_modeling:
+        integrated_modeling_specify = st.text_input("Please specify:")
+    #added
+    environmental_management = st.multiselect(
+        "Environmental management: Which of the following method(s) have you used?",
+        ("Scenario analysis",
+         "Footprinting",
+         "Life Cycle Assessment",
+         "Decision Support System",
+         "Other (please specify)")
+    )
+    #added
+    environmental_management_specify = ""
+    if "Other (please specify)" in environmental_management:
+        environmental_management_specify = st.text_input("Please specify:")
+    #added
+    economics = st.multiselect(
+        "Economics: Which of the following method(s) have you used?",
+        ("Cost-benefit analysis",
+         "Input-output analysis",
+         "Trade-off/Synergy analysis",
+         "Social accounting matrix",
+         "Value chain analysis",
+         "Supply chain analysis",
+         "Economic modelling",
+         "Other (please specify)")
+    )
+    #added
+    economics_specify = ""
+    if "Other (please specify)" in economics:
+        economics_specify = st.text_input("Please specify:")
+    #added
+    statistics = st.multiselect(
+        "Statistics: Which of the following method(s) have you used?",
+        ("Principal component analysis",
+         "Regression statistics",
+         "Trend analysis",
+         "Data mining",
+         "Other (please specify)")
+    )
+    #added
+    statistics_specify = ""
+    if "Other (please specify)" in statistics:
+        statistics_specify = st.text_input("Please specify:")
+    #added
+    social_science = st.multiselect(
+        "Social science: Which of the following method(s) have you used?",
+        ("Institutional analysis",
+         "Questionnaires, surveys or interviews",
+         "Historical analysis",
+         "Agent-based modelling",
+         "Delphi technique",
+         "Critical discourse analysis",
+         "Stakeholder analysis",
+         "Participatory workshops/focus groups",
+         "Living labs",
+         "Policy analysis",
+         "Other (please specify)")
+    )
+    #added
+    social_science_specify = ""
+    if "Other (please specify)" in social_science:
+        social_science_specify = st.text_input("Please specify:")
 
     semantics_ontologies = st.selectbox(
-        "16. Did you perform work on semantics and/or ontologies?",
+        "Did you perform work on ontology engineering?",
         ("YES", "NO"),
     )
     semantics_ontologies_specify = ""
     if semantics_ontologies == "YES":
-        semantics_ontologies_specify = st.text_input("16a) If yes, please specify:")
+        semantics_ontologies_specify = st.text_input("If yes, please specify:")
 
     footprint_calculations = st.selectbox(
-        "17. Did you perform any footprint calculations (Water, Energy, Nexus, etc.)?",
+        "Did you perform any footprint calculations (Water, Energy, Nexus, etc.)?",
         ("YES", "NO"),
     )
     footprint_calculations_specify = ""
     if footprint_calculations == "YES":
-        footprint_calculations_specify = st.text_input("17a) If yes, please specify:")
+        footprint_calculations_specify = st.text_input("If yes, please specify:", key="footprint_calculations_specify")
 
     decision_support_system = st.selectbox(
-    "18. Did you develop a Decision Support System?",
+    "Did you develop a Decision Support System?",
     ("YES", "NO"),
     )
     decision_support_system_details = ""
     if decision_support_system == "YES":
-        decision_support_system_details = st.text_area("18a) If yes, please give more details:")
-
+        decision_support_system_details = st.text_area("If yes, please give more details:")
+    #added
+    climate_projections = st.multiselect(
+        "Climate projections: Which of the following model(s) have you used?",
+        ("CAPRI",
+         "MAGPIE",
+         "E3ME",
+         "MAGNET",
+         "GLOBIO",
+         "SWAT",
+         "HYDROSIM",
+         "UWOT",
+         "WEAP",
+         "LEAP",
+         "Other (please specify)")
+    )
+    #added
+    climate_projections_specify = ""
+    if "Other (please specify)" in climate_projections:
+        climate_projections_specify = st.text_input("Please specify:")
+    #added
+    data_types = st.multiselect(
+        "Data types: Which of the following data sources have you used?",
+        ("Lab test outputs",
+         "Field test outputs",
+         "Sensors",
+         "Literature",
+         "Model outputs",
+         "Qualitative",
+         "Publicly available platforms (OECD, FAO, EUROSTAT)",
+         "National statistics",
+         "Other (please specify)")
+    )
+    #added
+    data_types_specify = ""
+    if "Other (please specify)" in data_types:
+        data_types_specify = st.text_input("Please specify:")
+    #added
     ai_methodology = st.multiselect(
-    "19. Did you use Artificial Intelligence methodology?",
+    "Did you use Artificial Intelligence methodology?",
     (
     "Knowledge Elicitation Engine",
     "Machine Learning",
@@ -288,62 +426,39 @@ if selection == 'New Case Study':
     "Evolutionary Optimization Approaches",
     "SWORM",
     "Simulated Annealing",
+    "Agent Based Modeling",
     "Other (specify)",
     ),
     )
     if "Other (specify)" in ai_methodology:
         ai_methodology_other = st.text_input("Please specify:",key='ai_methodology_other')
-
-    climate_projections = st.selectbox(
-    "20. Did you perform climate projections (in years)?",
-    ("YES", "NO"),
-    )
-    climate_projections_years = ""
-    if climate_projections == "YES":
-        climate_projections_years = st.selectbox(
-    "20a) If yes, please specify:",
-    ("30", "50", "100"),
-    )
-
-    existing_models = st.selectbox(
-    "21. Did you use existing models for the projections?",
-    ("YES", "NO"),
-    )
-    existing_models_specify = ""
-    existing_models_adjustments = ""
-    if existing_models == "YES":
-        existing_models_specify = st.text_input("21a) If yes, please specify:")
-    existing_models_adjustments = st.text_area("21b) Did you make any adjustments to the models specifically for the case studies?")
-
     nexus_indicators = st.selectbox(
-    "22. Did you develop indicators/KPIs to assess the Nexus?",
+    "Did you develop indicators/KPIs to assess the Nexus?",
     ("YES", "NO"),
     )
     nexus_indicators_specify = ""
     if nexus_indicators == "YES":
-        nexus_indicators_specify = st.text_area("22a) If yes, please specify:")
-
-    lifecycle_assessment = st.selectbox(
-    "23. Did you perform Life Cycle Assessment?",
-    ("YES", "NO"),
-    )
-    lifecycle_assessment_approach = ""
-    if lifecycle_assessment == "YES":
-        lifecycle_assessment_approach = st.text_input("23a) If yes, which approach did you use?")
-
+        nexus_indicators_specify = st.text_area("If yes, please specify:")
     monitoring_techniques = st.multiselect(
-    "24. Did you use any monitoring techniques (e.g. near real-time, or other)?",
+    "Did you use any monitoring techniques (e.g. near real-time, or other)?",
     (
     "Sensors",
     "Satellite",
     "Citizen Science",
     "Crowd Sourcing",
+    "Web-scraping tools",
+    "Field visits/sampling",
+    "Other (please specify)"
     ),
     )
+    #added
+    monitoring_techniques_specify = ""
+    if "Other (please specify)" in monitoring_techniques:
+        monitoring_techniques_specify = st.text_input("Please specify:")
     st.header("Section 4: Stakeholder Engagement")
 
     stakeholders_involved = st.multiselect(
-    "25. Which stakeholders are involved in the case study? (as part of the 5tuple helix)",
+    "Which stakeholders are involved in the case study? (as part of the 5tuple helix)",
     (
     "Private sector/business (industry, business, enterprises)",
     "Governmental stakeholders/policy makers",
@@ -356,13 +471,12 @@ if selection == 'New Case Study':
         stakeholders_involved_other = st.text_input("Please specify:")
 
     stakeholder_sectors = st.multiselect(
-    "26. Which sector did the stakeholders belong to?",
+    "Which sector did the stakeholders belong to?",
     (
-    "Agriculture",
+    "Agriculture/Farming",
     "Energy",
     "Water resources",
     "Tourism",
-    "Farming",
     "Media",
     "Biodiversity and natural ecosystems",
     "Education",
@@ -380,7 +494,7 @@ if selection == 'New Case Study':
     if "Other specify" in stakeholder_sectors:
         stakeholder_sectors_other = st.text_input("Please specify:")
     stakeholder_approach = st.multiselect(
-        "27. Which approach did you use to engage the stakeholders?",
+        "Which approach did you use to engage the stakeholders?",
         (
             "Living Lab",
             "Stakeholder Mapping and engagement strategy",
@@ -397,27 +511,102 @@ if selection == 'New Case Study':
     )
     if "Other specify" in stakeholder_approach:
         stakeholder_approach_other = st.text_input("Please specify:")
-    st.header("Section 5: Project Outputs")
+    #added
+    biggest_org = st.text_input("Which organization is/was the biggest actor affecting other organizations in the nexus?")
+    #added
+    biggest_org_sector = st.multiselect(
+        "Which sector did the biggest organization belong to?",
+        ("Water",
+         "Energy",
+         "Food",
+         "Ecosystems",
+         "Other")
+    )
+    #added
+    biggest_org_engaged = st.selectbox("Is this organization engaged in the project?",
+                                       ("YES", "NO"))
+    #added
+    st.header("Section 5: Governance and Policy")
+    #added
+    governance_assessment = st.selectbox("Did you perform any governance assessment?",
+                                         ("YES", "NO"))
+    #added
+    governance_assessment_specify = ""
+    if governance_assessment == "YES":
+        governance_assessment_specify = st.text_input("If yes, please specify:",key = "governance_assessment_specify")
+    #added
+    policy_coherence_assessment = st.selectbox("Did you perform any Policy Coherence Assessment to identify policy gaps?",
+        ("YES", "NO"))
+    #added
+    policy_coherence_assessment_specify = ""
+    if policy_coherence_assessment == "YES":
+        policy_coherence_assessment_specify = st.text_input("If yes, please specify:",key = "policy_coherence_assessment_specify")
+    #added
+    important_drivers = st.multiselect(
+        "What are the most important drivers underpinning the Nexus challenges investigated?",
+        ("Governance",
+         "Technological",
+         "Cultural",
+         "Socio-economic",
+         "Biophysical",
+         "Other (please specify)")
+    )
+    #added
+    important_drivers_specify = ""
+    if "Other (please specify)" in important_drivers:
+        important_drivers_specify = st.text_input("Please specify:")
+    #added
+    policy_coproduction = st.selectbox(
+        "What was the level of co-production of policy solutions and recommendations?",
+        ("Solutions were derived by the research team",
+         "Solutions were derived by the research team and validated by stakeholders",
+         "Solutions were derived bottom-up by stakeholders",
+        )
+    )
+    #added
+    current_implementation = st.selectbox(
+        "Are the solutions and recommendations currently being implemented?",
+        ("All solutions and recommendations have been implemented",
+         "Some solutions and recommendations have been implemented",
+         "None of the solutions and recommendations have been implemented",
+    )
+    )
+    #added
+    solutions_financing = st.selectbox(
+        "How were the solutions and recommendations financed?",
+        ("Public funding",
+         "Private funding",
+         "Public-private funding",
+         "Other (please specify)")
+    )
+    #added
+    solutions_financing_specify = ""
+    if "Other (please specify)" in solutions_financing:
+        solutions_financing_specify = st.text_input("Please specify:")
+    #added
+    governance_challenges = st.text_area("What are the main governance challenges in relation to nexus that you faced in the case study?")
+    #added
+    governance_lessons = st.text_area("What are the main lessons learned in relation to governance and nexus?")
+    st.header("Section 6: Project Outputs")
 
     # Question 32
     visualization_options = {
         "a": "Dashboard",
         "b": "Decision support tools",
         "c": "Online market place",
-        "d": "Augmented reality",
+        "d": "Augmented reality/Virtual reality",
         "e": "Serious games",
         "f": "Training material",
-        "g": "Virtual reality",
-        "h": "Open access database",
+        "g": "Open access database",
+        "h": "Mobile/tablet application",
         "i": "Other",
     }
-    visualization_choice = st.selectbox("32. Did you develop any visualization of the results?", options=list(visualization_options.values()))
+    visualization_choice = st.selectbox("Did you develop any visualization of the results?", options=list(visualization_options.values()))
     visualization_key = [k for k, v in visualization_options.items() if v == visualization_choice][0]
 
     # Question 33
-    sdg_assessment = st.selectbox("33. Did you perform any SDG's assessment?", ["YES", "NO"])
+    sdg_assessment = st.selectbox("Did you perform any SDG's assessment?", ["YES", "NO"])
 
-    # Question 34
     # Question 34
     if sdg_assessment == "YES":
         sdgs = [
@@ -439,16 +628,16 @@ if selection == 'New Case Study':
             "SDG 16: Peace, Justice, and Strong Institutions",
             "SDG 17: Partnerships for the Goals",
         ]
-        selected_sdgs = st.multiselect("34. If yes, please select which SDGs did you assess:", options=sdgs)
-
-
+        selected_sdgs = st.multiselect("If yes, please select which SDGs did you assess:", options=sdgs)
+    #added
+        sdg_assessment_method = st.text_input("What was the method used for SDG assessment?")
     # Question 35
-    data_mgmt_plan = st.selectbox("35. Did you implement a Data Management Plan (e.g Knowledge Graph, dashboard)?", ["YES", "NO"])
+    data_mgmt_plan = st.selectbox("Did you implement a Data Management Plan (e.g Knowledge Graph, dashboard)?", ["YES", "NO"])
 
     # Question 35a
     if data_mgmt_plan == 'YES':
-        data_mgmt_plan_specify = st.text_input("35a. If yes, please specify:", key="35a")
-    st.header("Section 6: Project After Life (Exploitation and Sustainability of the Solutions)")
+        data_mgmt_plan_specify = st.text_input("If yes, please specify:", key="35a")
+    st.header("Section 7: Project After Life (Exploitation and Sustainability of the Solutions)")
 
     # Question 36
     outputs_options = {
@@ -461,7 +650,7 @@ if selection == 'New Case Study':
         "g": "Knowledge graph",
         "h": "Data inventory",
     }
-    outputs_choice = st.multiselect("36. What kind of outputs did the case study develop?", options=list(outputs_options.values()))
+    outputs_choice = st.multiselect("What kind of outputs did the case study develop?", options=list(outputs_options.values()))
 
     # Question 37
     usage_options = {
@@ -475,10 +664,10 @@ if selection == 'New Case Study':
         "h": "The results are not used and there is no action in place to use them",
         "i": "Other purposes (please specify)",
     }
-    usage_choice = st.multiselect("37. How have the outputs of the project been used?", options=list(usage_options.values()), key="usage_choice")
+    usage_choice = st.multiselect("How have the outputs of the project been used?", options=list(usage_options.values()), key="usage_choice")
 
     if usage_choice == "Other purposes (please specify)":
-        other_purpose = st.text_input("Please specify the other purpose:", key="other_purpose")
+        usage_other_purpose = st.text_input("Please specify the other purpose:", key="other_purpose")
 
     # Question 38
     helix_categories = {
@@ -489,7 +678,7 @@ if selection == 'New Case Study':
         "n": "Nature conservation organizations",
         "o": "Others (please specify)",
     }
-    helix_choice = st.multiselect("38. When used, who used the results (Helix categorization)?", options=list(helix_categories.values()), key="helix_choice")
+    helix_choice = st.multiselect("When used, who used the results (Helix categorization)?", options=list(helix_categories.values()), key="helix_choice")
 
     if helix_choice == "Others (please specify)":
         other_helix = st.text_input("Please specify the other user:", key="other_helix")
@@ -506,34 +695,74 @@ if selection == 'New Case Study':
         "8": "Cultural impact",
         "9": "Training impacts",
     }
-    selected_impacts = st.multiselect("39. Did the project have any/multiple of the following impacts? (Multiple choice answer possibility)", options=list(impact_categories.values()), key="impacts")
+    selected_impacts = st.multiselect("Did the project have any/multiple of the following impacts? (Multiple choice answer possibility)", options=list(impact_categories.values()), key="impacts")
 
     # Question 40
-    impact_description = st.text_area("40. Please briefly illustrate the impact(s) achieved:", key="impact_description")
+    impact_description = st.text_area("Please briefly illustrate the impact(s) achieved:", key="impact_description")
 
     if st.button("Submit Case Study Data"):
-        create_case_study_node({
+        case_study_data_specify = [
+            case_study_scale_other,
+            nexus_sectors_other,
+            layers_of_analysis_other,
+            systems_analysis_specify,
+            integrated_modeling_specify,
+            environmental_management_specify,
+            economics_specify,
+            statistics_specify,
+            social_science_specify,
+            climate_projections_specify,
+            semantics_ontologies_specify,
+            footprint_calculations_specify,
+            decision_support_system_details,
+            data_types_specify,
+            ai_methodology_other,
+            nexus_indicators_specify,
+            monitoring_techniques_specify,
+            stakeholders_involved_other,
+            stakeholder_sectors_other,
+            stakeholder_approach_other,
+            governance_assessment_specify,
+            policy_coherence_assessment_specify,
+            important_drivers_specify,
+            solutions_financing_specify,
+            data_mgmt_plan_specify,
+            usage_other_purpose,
+            other_helix
+        ]
+        case_study_data = {
             'name': case_study_name,
             'Country': case_study_country,
-            'latitude':case_study_latitude,
-            'longitude':case_study_longitude,
+            #'latitude':case_study_latitude,
+            #'longitude':case_study_longitude,
             'Scale': case_study_scale,
             'Transboundary': case_study_transboundary,
             'Objectives': case_study_objectives,
             'NexusSectors': nexus_sectors,
             'LayersOfAnalysis': layers_of_analysis,
             'SystemsAnalysis': systems_analysis_specify,
-            'SemanticsOntologies': semantics_ontologies_specify,
-            'FootprintCalcs': footprint_calculations_specify,
-            'DecisionSupportSystems': decision_support_system_details,
+            'IntegratedModeling': integrated_modeling,
+            'EnvironmentalManagement': environmental_management,
+            'Economics': economics,
+            'Statistics': statistics,
+            'SocialScience': social_science,
+            'ClimateProjections': climate_projections,
+            'DataTypes': data_types,
             'AIMethodology': ai_methodology,
-            'ClimateProjYears': climate_projections_years,
-            'ExistingModels': existing_models_specify,
-            'NexusIndicators': nexus_indicators_specify,
-            'LifeCycleAssessment': lifecycle_assessment_approach,
+            #'ClimateProjYears': climate_projections_years,
+            #'ExistingModels': existing_models_specify,
+            #'LifeCycleAssessment': lifecycle_assessment_approach,
             'MonitoringTechniques': monitoring_techniques,
             'Stakeholders': stakeholders_involved,
             'StakeholderSectors': stakeholder_sectors,
+            'StakeholderApproach': stakeholder_approach,
+            'ImportantDrivers': important_drivers,
+            'SolutionsFinancing': solutions_financing,
+            'GovernanceChallenges': governance_challenges,
+            'GovernanceLessons': governance_lessons,
+            'MostImpactfulOrg': biggest_org,
+            'MostImpactfulOrgSector': biggest_org_sector,
+            'MostImpactfulOrgEngaged': biggest_org_engaged,
             'Visualization': visualization_choice,
             'SDGs': selected_sdgs,
             'CaseStudyOutputs': outputs_choice,
@@ -541,27 +770,32 @@ if selection == 'New Case Study':
             'Helix': helix_choice,
             'Impacts': selected_impacts,
             'ImpactDescription': impact_description,
-        },
-                               {
+        }
+        for item in case_study_data_specify:
+            if item:
+                case_study_data[item] = item
+        case_study_leader_data = {
                 'name':case_study_leader_name,
                 'ContactMail':case_study_leader_contact,
                 'HostInstitution':case_study_leader_institution,
-        },
-                case_study_project)
+        }
+        create_case_study_node(case_study_data,
+                               case_study_leader_data,
+        case_study_project)
         st.success("Case Study Data Submitted Successfully!")
 
-if selection == "Modify Nodes":
-    labels = get_all_node_labels()
-    label_selection = st.selectbox("Select Node Label to Modify", options=labels, key="modify_node_label")
-    node_name_list = get_all_node_names_of_label(label_selection)
-    node_name_selection = st.selectbox("Select Node to Modify", options=node_name_list, key="modify_node_name")
-    node_attribute_list = get_node_info(label_selection, node_name_selection)
-    node_attribute_to_modify = st.selectbox("Select Attribute to Modify", options=node_attribute_list, key="modify_node_attribute")
-    new_attribute_value = st.text_input("Enter New Value for Attribute", key="modify_node_attribute_value")
-    if st.button("Modify Node"):
-        modify_node_attribute(label_selection, node_name_selection, node_attribute_to_modify, new_attribute_value)
-        st.success("Node Modified Successfully!")
-st.header("All Data Nodes")
-all_nodes = get_all_nodes()
-for node in all_nodes:
-    st.write(node)
+# if selection == "Modify Nodes":
+#     labels = get_all_node_labels()
+#     label_selection = st.selectbox("Select Node Label to Modify", options=labels, key="modify_node_label")
+#     node_name_list = get_all_node_names_of_label(label_selection)
+#     node_name_selection = st.selectbox("Select Node to Modify", options=node_name_list, key="modify_node_name")
+#     node_attribute_list = get_node_info(label_selection, node_name_selection)
+#     node_attribute_to_modify = st.selectbox("Select Attribute to Modify", options=node_attribute_list, key="modify_node_attribute")
+#     new_attribute_value = st.text_input("Enter New Value for Attribute", key="modify_node_attribute_value")
+#     if st.button("Modify Node"):
+#         modify_node_attribute(label_selection, node_name_selection, node_attribute_to_modify, new_attribute_value)
+#         st.success("Node Modified Successfully!")
+# st.header("All Data Nodes")
+# all_nodes = get_all_nodes()
+# for node in all_nodes:
+#     st.write(node)
