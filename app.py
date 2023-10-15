@@ -82,7 +82,7 @@ def submit_project_info(name, proj_type, proj_website, proj_start, proj_end, coo
     create_project_node(project_dict, coord_dict)
     return None
 
-def create_case_study_node(case_study_info, case_study_lead_info, project_name):
+def create_case_study_node(case_study_info, case_study_lead_info, project_name, case_study_leader_host_institution):
     for key, value in case_study_info.items():
         if value == "" or value == [] or value is None:
             case_study_info[key] = "Not Available"
@@ -91,17 +91,26 @@ def create_case_study_node(case_study_info, case_study_lead_info, project_name):
         SET case_study.id = apoc.create.uuid(), case_study += $case_study_info
     MERGE (lead:Researcher {name: $case_study_lead_info.name})
         ON CREATE SET lead.id = apoc.create.uuid(), lead += $case_study_lead_info
-    WITH case_study, lead
+    MERGE (institution:Institution {name: $case_study_leader_host_institution})
+        ON CREATE SET institution.id = apoc.create.uuid()
+    WITH case_study, lead, institution
     MATCH (project:Project {name: $project_name})
     MERGE (project)-[:HAS_CASE_STUDY]->(case_study)
     MERGE (lead)-[r1:WORKS_ON {role: 'Case Study Leader'}]->(case_study)
         ON CREATE SET r1.timestamp = timestamp()
     MERGE (lead)-[r2:WORKS_ON {role: 'Case Study Leader'}]->(project)
         ON CREATE SET r2.timestamp = timestamp()
+    MERGE (lead)-[:BELONGS_TO]->(institution)
     """
 
-    run_query(query, {'case_study_info': case_study_info, 'case_study_lead_info': case_study_lead_info, 'project_name': project_name})
+    run_query(query, {
+        'case_study_info': case_study_info,
+        'case_study_lead_info': case_study_lead_info,
+        'project_name': project_name,
+        'case_study_leader_host_institution': case_study_leader_host_institution
+    })
     return None
+
 
 def get_all_node_labels():
     query = """
@@ -156,20 +165,7 @@ selection = st.radio('Are you inputting a new project or adding a case study to 
 if selection == 'New Project':
     name = st.text_input(label='Project Name')
     proj_type = st.selectbox(label='The project is funded by:',options=['HORIZON 2020', 'HORIZON EUROPE', 'ERC', 'Life','Prima','Interreg','Erasmus+','Marie Sklodowska-Curie', 'National/Regional Funding', 'Other'], index=1)
-    if proj_type != 'HORIZON EUROPE' and proj_type != 'HORIZON 2020':
-        coord_host = st.text_input(label='Project Coordinator Host Institution')
-    else:
-        check_button = st.button(label='Fetch Project Info')
-        if check_button:
-            project_data = fetch_project_data(name,proj_type)
-            project_data_coord = project_data[project_data['role']=='coordinator'].reset_index(drop=True)
-            if project_data_coord.shape[0] == 0:
-                st.error('Project not found in the database. Please check the project name and funding type and try again.')
-                st.stop()
-            coord_host = project_data_coord['name'][0]
-            st.write(f" Project Coordinator: {coord_host}")
-            project_data_other = project_data[project_data['role'] != 'coordinator'].reset_index(drop=True)
-            st.table(project_data_other[['name']])
+    coord_host = st.text_input(label='Project Coordinator Host Institution')
     proj_website = st.text_input(label='Project Website')
     proj_start = st.date_input(label='Project Start Date')
     proj_end = st.date_input(label='Project End Date')
@@ -244,6 +240,7 @@ if selection == 'New Case Study':
             "Other (please specify)",
         ),
     )
+    nexus_sectors_other = ""
     if "Other (please specify)" in nexus_sectors:
         nexus_sectors_other = st.text_input("Please specify:")
 
@@ -257,6 +254,7 @@ if selection == 'New Case Study':
             "Other (please specify):",
         ),
     )
+    layers_of_analysis_other = ""
     if "Other (p)lease specify):" in layers_of_analysis:
         layers_of_analysis_other = st.text_input("Please specify:")
 
@@ -430,6 +428,7 @@ if selection == 'New Case Study':
     "Other (specify)",
     ),
     )
+    ai_methodology_other = ""
     if "Other (specify)" in ai_methodology:
         ai_methodology_other = st.text_input("Please specify:",key='ai_methodology_other')
     nexus_indicators = st.selectbox(
@@ -467,6 +466,7 @@ if selection == 'New Case Study':
     "Other specify",
     ),
     )
+    stakeholders_involved_other = ""
     if "Other specify" in stakeholders_involved:
         stakeholders_involved_other = st.text_input("Please specify:")
 
@@ -491,6 +491,7 @@ if selection == 'New Case Study':
     "Other specify",
     ),
     )
+    stakeholder_sectors_other = ""
     if "Other specify" in stakeholder_sectors:
         stakeholder_sectors_other = st.text_input("Please specify:")
     stakeholder_approach = st.multiselect(
@@ -509,6 +510,7 @@ if selection == 'New Case Study':
             "Other specify",
         ),
     )
+    stakeholder_approach_other = ""
     if "Other specify" in stakeholder_approach:
         stakeholder_approach_other = st.text_input("Please specify:")
     #added
@@ -608,6 +610,7 @@ if selection == 'New Case Study':
     sdg_assessment = st.selectbox("Did you perform any SDG's assessment?", ["YES", "NO"])
 
     # Question 34
+    selected_sdgs = ""
     if sdg_assessment == "YES":
         sdgs = [
             "SDG 1: No Poverty",
@@ -628,6 +631,7 @@ if selection == 'New Case Study':
             "SDG 16: Peace, Justice, and Strong Institutions",
             "SDG 17: Partnerships for the Goals",
         ]
+
         selected_sdgs = st.multiselect("If yes, please select which SDGs did you assess:", options=sdgs)
     #added
         sdg_assessment_method = st.text_input("What was the method used for SDG assessment?")
@@ -635,6 +639,7 @@ if selection == 'New Case Study':
     data_mgmt_plan = st.selectbox("Did you implement a Data Management Plan (e.g Knowledge Graph, dashboard)?", ["YES", "NO"])
 
     # Question 35a
+    data_mgmt_plan_specify = ""
     if data_mgmt_plan == 'YES':
         data_mgmt_plan_specify = st.text_input("If yes, please specify:", key="35a")
     st.header("Section 7: Project After Life (Exploitation and Sustainability of the Solutions)")
@@ -666,6 +671,7 @@ if selection == 'New Case Study':
     }
     usage_choice = st.multiselect("How have the outputs of the project been used?", options=list(usage_options.values()), key="usage_choice")
 
+    usage_other_purpose = ""
     if usage_choice == "Other purposes (please specify)":
         usage_other_purpose = st.text_input("Please specify the other purpose:", key="other_purpose")
 
@@ -680,6 +686,7 @@ if selection == 'New Case Study':
     }
     helix_choice = st.multiselect("When used, who used the results (Helix categorization)?", options=list(helix_categories.values()), key="helix_choice")
 
+    other_helix = ""
     if helix_choice == "Others (please specify)":
         other_helix = st.text_input("Please specify the other user:", key="other_helix")
 
@@ -781,7 +788,7 @@ if selection == 'New Case Study':
         }
         create_case_study_node(case_study_data,
                                case_study_leader_data,
-        case_study_project)
+        case_study_project, case_study_leader_institution)
         st.success("Case Study Data Submitted Successfully!")
 
 # if selection == "Modify Nodes":
