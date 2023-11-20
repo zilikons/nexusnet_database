@@ -162,7 +162,7 @@ def fetch_project_data(project_name,project_type):
 
 st.title("NEXUSNET Database Survey Form")
 st.header("Introduction")
-st.text("""Thank you for adding your Case Study information to the Global Nexus Case Studies Platform. \n
+st.markdown("""Thank you for adding your Case Study information to the Global Nexus Case Studies Platform. \n
 The platform is a free-to-access tool that hosts Nexus Case Studies from all around the world held by Cost Action NEXUSNET and supported by Nexus Cluster Project. \n
 The platform allows the users to visualize the information of each Case Studies based on multiple queries and also download a factsheet with complete information of each CS. \n
 You will now be guided to provide information about your CS.
