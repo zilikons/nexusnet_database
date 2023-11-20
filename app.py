@@ -161,6 +161,12 @@ def fetch_project_data(project_name,project_type):
     return df
 
 st.title("NEXUSNET Database Survey Form")
+st.header("Introduction")
+st.text("""Thank you for adding your Case Study information to the Global Nexus Case Studies Platform. \n
+The platform is a free-to-access tool that hosts Nexus Case Studies from all around the world held by Cost Action NEXUSNET and supported by Nexus Cluster Project. \n
+The platform allows the users to visualize the information of each Case Studies based on multiple queries and also download a factsheet with complete information of each CS. \n
+You will now be guided to provide information about your CS.
+""")
 selection = st.radio('Are you inputting a new project or adding a case study to an existing project?', ('New Project', 'New Case Study'))
 if selection == 'New Project':
     name = st.text_input(label='Project Name')
