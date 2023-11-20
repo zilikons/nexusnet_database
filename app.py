@@ -191,11 +191,11 @@ if selection == 'New Case Study':
     st.header("Section 1: Case Study Characteristics")
     case_study_project = st.selectbox("Which project is the case study part of?", list_of_projects)
     st.subheader(":exclamation: :red[WARNING] :exclamation: : If you are adding a case study to a project that does not exist, please go back and create a new project first.")
-    case_study_name = st.text_input("Name your case study")
-    case_study_leader_institution = st.text_input("What is the host institution of the case study leader?")
-    case_study_leader_name = st.text_input("Case study leader name")
-    case_study_leader_contact = st.text_input("Case study leader email")
-    case_study_country = st.text_input("In which country/countries is your case study located?")
+    case_study_name = st.text_input("Name your case study", key="case_study_name")
+    case_study_leader_institution = st.text_input("What is the host institution of the case study leader?", key="case_study_leader_institution")
+    case_study_leader_name = st.text_input("Case study leader name", key="case_study_leader_name")
+    case_study_leader_contact = st.text_input("Case study leader email", key="case_study_leader_contact")
+    case_study_country = st.text_input("In which country/countries is your case study located?", key="case_study_country")
     #case_study_latitude = st.text_input("9c. What is the latitude of the case study?",value=0.0)
     #case_study_longitude = st.text_input("9b. What is the longitude of the case study?",value=0.0)
     #if validate_lat_lon(case_study_latitude, case_study_longitude):
@@ -220,14 +220,14 @@ if selection == 'New Case Study':
     )
     case_study_scale_other = ""
     if case_study_scale == "Other (specify)":
-        case_study_scale_other = st.text_input("Please specify:")
+        case_study_scale_other = st.text_input("Please specify:", key="case_study_scale_other")
 
     case_study_transboundary = st.selectbox(
         "Is the case study transboundary?",
         ("No", "Transboundary between countries", "Transboundary between regions"),
     )
 
-    case_study_objectives = st.text_area("What were/are the objectives (goals) of the case study?")
+    case_study_objectives = st.text_area("What were/are the objectives (goals) of the case study?", key="case_study_objectives")
 
     # SECTION 2: Nexus components information
     st.header("Section 2: Nexus Components Information")
@@ -384,7 +384,7 @@ if selection == 'New Case Study':
     )
     decision_support_system_details = ""
     if decision_support_system == "YES":
-        decision_support_system_details = st.text_area("If yes, please give more details:")
+        decision_support_system_details = st.text_area("If yes, please give more details:", key="decision_support_system_details")
     #added
     climate_projections = st.multiselect(
         "Climate projections: Which of the following model(s) have you used?",
@@ -521,7 +521,7 @@ if selection == 'New Case Study':
     if "Other (please specify)" in stakeholder_approach:
         stakeholder_approach_other = st.text_input("Please specify:", key="stakeholder_approach_other")
     #added
-    biggest_org = st.text_input("Which organization is/was the biggest actor affecting other organizations in the nexus?")
+    biggest_org = st.text_input("Which organization is/was the biggest actor affecting other organizations in the nexus?", key="biggest_org")
     #added
     biggest_org_sector = st.multiselect(
         "Which sector did the biggest organization belong to?",
@@ -653,7 +653,7 @@ if selection == 'New Case Study':
     # Question 35a
     data_mgmt_plan_specify = ""
     if data_mgmt_plan == 'YES':
-        data_mgmt_plan_specify = st.text_input("If yes, please specify:", key="35a")
+        data_mgmt_plan_specify = st.text_input("If yes, please specify:", key="data_mgmt_plan_specify")
     st.header("Section 7: Project After Life (Exploitation and Sustainability of the Solutions)")
 
     # Question 36
